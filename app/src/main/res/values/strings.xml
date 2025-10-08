@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Sprint Runner</string>
+    <string name="SprintRunner">Sprint Runner</string>
+    
+    <!-- Timer Screen -->
+    <string name="timer_ready">Готов</string>
+    <string name="timer_preparation">Подготовка</string>
+    <string name="timer_sprinting">Спринт</string>
+    <string name="timer_resting">Отдых</string>
+    <string name="timer_paused">Пауза</string>
+    <string name="timer_completed">Готово!</string>
+    
+    <!-- Buttons -->
+    <string name="button_start">СТАРТ</string>
+    <string name="button_stop">СТОП</string>
+    <string name="button_pause">ПАУЗА</string>
+    <string name="button_resume">ПРОД</string>
+    <string name="button_reset">СБРОС</string>
+    <string name="button_new">НОВЫЙ</string>
+    
+    <!-- History Screen -->
+    <string name="history_title">История</string>
+    <string name="history_empty">Нет тренировок</string>
+    <string name="history_back">Назад</string>
+    
+    <!-- Progress Screen -->
+    <string name="progress_title">Прогресс</string>
+    <string name="progress_stats">Статистика</string>
+    <string name="progress_achievements">Достижения</string>
+    <string name="progress_best">Лучшее</string>
+    <string name="progress_average">Среднее</string>
+    <string name="progress_workouts">Тренировок</string>
+    <string name="progress_improvement">Улучшение</string>
+    
+    <!-- Workout Types -->
+    <string name="workout_time_based">По времени</string>
+    <string name="workout_distance_based">По дистанции</string>
+    
+    <!-- Distances -->
+    <string name="distance_30m">30м</string>
+    <string name="distance_50m">50м</string>
+    <string name="distance_100m">100м</string>
+    <string name="distance_200m">200м</string>
+    <string name="distance_400m">400м</string>
+    
+    <!-- Settings -->
+    <string name="settings_prep_time">Подготовка</string>
+    <string name="settings_sprint_time">Спринт</string>
+    <string name="settings_rest_time">Отдых</string>
+    <string name="settings_cycles">Циклы</string>
+    
+    <!-- Notifications -->
+    <string name="notification_channel_name">Тренировки</string>
+    <string name="notification_channel_description">Уведомления о тренировках</string>
+    <string name="notification_workout_complete">Тренировка завершена!</string>
+    
+    <!-- Errors -->
+    <string name="error_generic">Произошла ошибка</string>
+    <string name="error_save_failed">Не удалось сохранить тренировку</string>
+    <string name="error_load_failed">Не удалось загрузить данные</string>
+</resources>

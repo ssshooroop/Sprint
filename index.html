@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sprint Runner - Тренировки спринтов</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/material-design-icons/4.0.0/font/MaterialIcons-Regular.ttf">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@splidejs/splide@4.1.4/dist/js/splide.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/@splidejs/splide@4.1.4/dist/css/splide.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        'inter': ['Inter', 'sans-serif'],
+                        'mono': ['JetBrains Mono', 'monospace']
+                    },
+                    colors: {
+                        'primary': '#1a73e8',
+                        'secondary': '#34a853',
+                        'error': '#ea4335',
+                        'surface': '#f8f9fa',
+                        'text-primary': '#202124',
+                        'text-secondary': '#5f6368'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .timer-circle {
+            stroke-dasharray: 628;
+            stroke-dashoffset: 628;
+            transform-origin: center;
+            transition: stroke-dashoffset 0.1s linear;
+        }
+        
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        .floating {
+            animation: floating 3s ease-in-out infinite;
+        }
+        
+        @keyframes floating {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+        
+        .gradient-text {
+            background: linear-gradient(135deg, #1a73e8, #34a853);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .card-hover {
+            transition: all 0.3s ease;
+        }
+        
+        .card-hover:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+        
+        .nav-item {
+            transition: all 0.3s ease;
+        }
+        
+        .nav-item.active {
+            color: #1a73e8;
+            transform: scale(1.1);
+        }
+        
+        .mode-button {
+            transition: all 0.3s ease;
+        }
+        
+        .mode-button.active {
+            background: #1a73e8;
+            color: white;
+            transform: scale(1.05);
+        }
+        
+        .distance-button {
+            transition: all 0.3s ease;
+        }
+        
+        .distance-button.active {
+            background: #34a853;
+            color: white;
+            transform: scale(1.1);
+        }
+    </style>
+</head>
+<body class="bg-white text-text-primary font-inter">
+    <!-- Background Animation Container -->
+    <div id="background-animation" class="fixed inset-0 z-0"></div>
+    
+    <!-- Main Content -->
+    <div class="relative z-10 min-h-screen pb-20">
+        <!-- Header -->
+        <header class="bg-white shadow-sm border-b border-gray-100 px-4 py-4">
+            <div class="flex items-center justify-between max-w-md mx-auto">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-primary rounded-full flex items-center justify-center">
+                        <span class="material-icons text-white text-xl">directions_run</span>
+                    </div>
+                    <h1 class="text-xl font-bold gradient-text">Sprint Runner</h1>
+                </div>
+                <button id="theme-toggle" class="p-2 rounded-full hover:bg-surface transition-colors">
+                    <span class="material-icons text-text-secondary">dark_mode</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Screen -->
+        <main class="max-w-md mx-auto px-4 py-6">
+            <!-- Timer Display -->
+            <div class="text-center mb-8">
+                <div class="relative inline-block">
+                    <svg width="200" height="200" class="transform -rotate-90">
+                        <circle cx="100" cy="100" r="90" stroke="#f1f3f4" stroke-width="8" fill="none"/>
+                        <circle id="progress-circle" cx="100" cy="100" r="90" stroke="#1a73e8" stroke-width="8" 
+                                fill="none" class="timer-circle"/>
+                    </svg>
+                    <div class="absolute inset-0 flex items-center justify-center">
+                        <div class="text-center">
+                            <div id="timer-display" class="font-mono text-4xl font-bold text-text-primary">00:00.00</div>
+                            <div id="timer-phase" class="text-sm text-text-secondary mt-1">Готов</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Mode Selection -->
+            <div class="mb-6">
+                <div class="flex bg-surface rounded-lg p-1 mb-4">
+                    <button id="time-mode-btn" class="mode-button flex-1 py-3 px-4 rounded-md text-sm font-medium active">
+                        По времени
+                    </button>
+                    <button id="distance-mode-btn" class="mode-button flex-1 py-3 px-4 rounded-md text-sm font-medium">
+                        По дистанции
+                    </button>
+                </div>
+
+                <!-- Time Mode Settings -->
+                <div id="time-settings" class="space-y-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-text-secondary mb-2">Подготовка (сек)</label>
+                            <input type="range" id="prep-time" min="5" max="30" value="10" 
+                                   class="w-full h-2 bg-surface rounded-lg appearance-none cursor-pointer">
+                            <div class="text-center text-sm text-text-secondary mt-1" id="prep-time-value">10</div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-text-secondary mb-2">Спринт (сек)</label>
+                            <input type="range" id="sprint-time" min="10" max="60" value="30" 
+                                   class="w-full h-2 bg-surface rounded-lg appearance-none cursor-pointer">
+                            <div class="text-center text-sm text-text-secondary mt-1" id="sprint-time-value">30</div>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-text-secondary mb-2">Циклы</label>
+                            <input type="range" id="cycles" min="1" max="10" value="3" 
+                                   class="w-full h-2 bg-surface rounded-lg appearance-none cursor-pointer">
+                            <div class="text-center text-sm text-text-secondary mt-1" id="cycles-value">3</div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-text-secondary mb-2">Отдых (сек)</label>
+                            <input type="range" id="rest-time" min="30" max="180" value="60" 
+                                   class="w-full h-2 bg-surface rounded-lg appearance-none cursor-pointer">
+                            <div class="text-center text-sm text-text-secondary mt-1" id="rest-time-value">60</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Distance Mode Settings -->
+                <div id="distance-settings" class="space-y-4 hidden">
+                    <div>
+                        <label class="block text-sm font-medium text-text-secondary mb-3">Выберите дистанцию</label>
+                        <div class="grid grid-cols-3 gap-2">
+                            <button class="distance-button py-3 px-4 rounded-lg border-2 border-gray-200 text-sm font-medium" data-distance="30">30м</button>
+                            <button class="distance-button py-3 px-4 rounded-lg border-2 border-gray-200 text-sm font-medium" data-distance="50">50м</button>
+                            <button class="distance-button py-3 px-4 rounded-lg border-2 border-gray-200 text-sm font-medium active" data-distance="100">100м</button>
+                            <button class="distance-button py-3 px-4 rounded-lg border-2 border-gray-200 text-sm font-medium" data-distance="200">200м</button>
+                            <button class="distance-button py-3 px-4 rounded-lg border-2 border-gray-200 text-sm font-medium" data-distance="400">400м</button>
+                            <button class="distance-button py-3 px-4 rounded-lg border-2 border-gray-200 text-sm font-medium" data-distance="custom">Другое</button>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-text-secondary mb-2">Подготовка (сек)</label>
+                        <input type="range" id="distance-prep-time" min="5" max="30" value="10" 
+                               class="w-full h-2 bg-surface rounded-lg appearance-none cursor-pointer">
+                        <div class="text-center text-sm text-text-secondary mt-1" id="distance-prep-time-value">10</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Control Buttons -->
+            <div class="flex space-x-3 mb-6">
+                <button id="start-btn" class="flex-1 bg-primary text-white py-4 px-6 rounded-xl font-semibold text-lg shadow-lg hover:shadow-xl transition-all">
+                    СТАРТ
+                </button>
+                <button id="stop-btn" class="bg-error text-white py-4 px-6 rounded-xl font-semibold text-lg shadow-lg hover:shadow-xl transition-all hidden">
+                    СТОП
+                </button>
+                <button id="pause-btn" class="bg-yellow-500 text-white py-4 px-6 rounded-xl font-semibold text-lg shadow-lg hover:shadow-xl transition-all hidden">
+                    ПАУЗА
+                </button>
+            </div>
+
+            <!-- Last Result -->
+            <div id="last-result" class="bg-surface rounded-xl p-4 text-center card-hover">
+                <div class="text-sm text-text-secondary mb-1">Последний результат</div>
+                <div class="text-2xl font-bold text-primary">--:--.--</div>
+                <div class="text-sm text-text-secondary">Нет данных</div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="grid grid-cols-2 gap-3 mt-6">
+                <button onclick="showHistory()" class="bg-white border-2 border-surface rounded-xl p-4 text-center card-hover">
+                    <span class="material-icons text-primary text-2xl mb-2">history</span>
+                    <div class="text-sm font-medium">История</div>
+                </button>
+                <button onclick="showProgress()" class="bg-white border-2 border-surface rounded-xl p-4 text-center card-hover">
+                    <span class="material-icons text-secondary text-2xl mb-2">trending_up</span>
+                    <div class="text-sm font-medium">Прогресс</div>
+                </button>
+            </div>
+        </main>
+
+        <!-- History Screen -->
+        <div id="history-screen" class="hidden max-w-md mx-auto px-4 py-6">
+            <div class="flex items-center justify-between mb-6">
+                <h2 class="text-2xl font-bold">История</h2>
+                <button onclick="showMain()" class="p-2 rounded-full hover:bg-surface transition-colors">
+                    <span class="material-icons">close</span>
+                </button>
+            </div>
+
+            <!-- Filters -->
+            <div class="flex space-x-2 mb-4">
+                <button class="filter-btn active px-4 py-2 rounded-lg text-sm font-medium bg-primary text-white" data-filter="all">Все</button>
+                <button class="filter-btn px-4 py-2 rounded-lg text-sm font-medium bg-surface text-text-secondary" data-filter="time">По времени</button>
+                <button class="filter-btn px-4 py-2 rounded-lg text-sm font-medium bg-surface text-text-secondary" data-filter="distance">По дистанции</button>
+            </div>
+
+            <!-- Results List -->
+            <div id="results-list" class="space-y-3">
+                <!-- Results will be populated by JavaScript -->
+            </div>
+
+            <!-- Empty State -->
+            <div id="empty-history" class="text-center py-12 hidden">
+                <span class="material-icons text-6xl text-text-secondary mb-4">history</span>
+                <div class="text-text-secondary">Нет сохраненных результатов</div>
+            </div>
+        </div>
+
+        <!-- Progress Screen -->
+        <div id="progress-screen" class="hidden max-w-md mx-auto px-4 py-6">
+            <div class="flex items-center justify-between mb-6">
+                <h2 class="text-2xl font-bold">Прогресс</h2>
+                <button onclick="showMain()" class="p-2 rounded-full hover:bg-surface transition-colors">
+                    <span class="material-icons">close</span>
+                </button>
+            </div>
+
+            <!-- Stats Cards -->
+            <div class="grid grid-cols-2 gap-4 mb-6">
+                <div class="bg-surface rounded-xl p-4 text-center">
+                    <div class="text-2xl font-bold text-primary" id="best-time">--:--.--</div>
+                    <div class="text-sm text-text-secondary">Лучшее время</div>
+                </div>
+                <div class="bg-surface rounded-xl p-4 text-center">
+                    <div class="text-2xl font-bold text-secondary" id="avg-time">--:--.--</div>
+                    <div class="text-sm text-text-secondary">Среднее время</div>
+                </div>
+                <div class="bg-surface rounded-xl p-4 text-center">
+                    <div class="text-2xl font-bold text-text-primary" id="total-workouts">0</div>
+                    <div class="text-sm text-text-secondary">Тренировок</div>
+                </div>
+                <div class="bg-surface rounded-xl p-4 text-center">
+                    <div class="text-2xl font-bold text-text-primary" id="improvement">0%</div>
+                    <div class="text-sm text-text-secondary">Улучшение</div>
+                </div>
+            </div>
+
+            <!-- Chart -->
+            <div class="bg-surface rounded-xl p-4 mb-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-semibold">Динамика результатов</h3>
+                    <div class="flex space-x-2">
+                        <button class="period-btn active px-3 py-1 rounded-lg text-sm bg-primary text-white" data-period="week">Неделя</button>
+                        <button class="period-btn px-3 py-1 rounded-lg text-sm bg-surface text-text-secondary" data-period="month">Месяц</button>
+                        <button class="period-btn px-3 py-1 rounded-lg text-sm bg-surface text-text-secondary" data-period="all">Все</button>
+                    </div>
+                </div>
+                <div id="progress-chart" style="height: 300px;"></div>
+            </div>
+
+            <!-- Achievements -->
+            <div class="bg-surface rounded-xl p-4">
+                <h3 class="text-lg font-semibold mb-4">Достижения</h3>
+                <div id="achievements-list" class="grid grid-cols-3 gap-3">
+                    <!-- Achievements will be populated by JavaScript -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Navigation -->
+    <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-4 py-2 z-20">
+        <div class="max-w-md mx-auto flex justify-around">
+            <button class="nav-item active flex flex-col items-center py-2 px-4 rounded-lg" onclick="showMain()">
+                <span class="material-icons text-2xl">home</span>
+                <span class="text-xs mt-1">Главная</span>
+            </button>
+            <button class="nav-item flex flex-col items-center py-2 px-4 rounded-lg" onclick="showHistory()">
+                <span class="material-icons text-2xl">history</span>
+                <span class="text-xs mt-1">История</span>
+            </button>
+            <button class="nav-item flex flex-col items-center py-2 px-4 rounded-lg" onclick="showProgress()">
+                <span class="material-icons text-2xl">trending_up</span>
+                <span class="text-xs mt-1">Прогресс</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Notification Toast -->
+    <div id="notification" class="fixed top-4 left-4 right-4 bg-primary text-white px-4 py-3 rounded-lg shadow-lg transform -translate-y-full transition-transform duration-300 z-30">
+        <div class="flex items-center">
+            <span class="material-icons mr-2">info</span>
+            <span id="notification-text"></span>
+        </div>
+    </div>
+
+    <script src="main.js"></script>
+</body>
+</html>
