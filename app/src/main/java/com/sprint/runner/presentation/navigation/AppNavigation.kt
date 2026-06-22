@@ -6,6 +6,7 @@ import androidx.navigation.NavHostController
 import androidx.wear.compose.navigation.SwipeDismissableNavHost
 import androidx.wear.compose.navigation.composable
 import androidx.wear.compose.navigation.rememberSwipeDismissableNavController
+import com.sprint.runner.presentation.distance.DistanceScreen
 import com.sprint.runner.presentation.history.HistoryScreen
 import com.sprint.runner.presentation.progress.ProgressScreen
 import com.sprint.runner.presentation.settings.SettingsScreen
@@ -13,6 +14,7 @@ import com.sprint.runner.presentation.timer.TimerScreen
 
 object Destinations {
     const val TIMER_ROUTE = "timer"
+    const val DISTANCE_ROUTE = "distance"
     const val HISTORY_ROUTE = "history"
     const val PROGRESS_ROUTE = "progress"
     const val SETTINGS_ROUTE = "settings"
@@ -35,6 +37,20 @@ fun AppNavigation(
                 },
                 onNavigateToProgress = {
                     navController.navigate(Destinations.PROGRESS_ROUTE)
+                },
+                onNavigateToSettings = {
+                    navController.navigate(Destinations.SETTINGS_ROUTE)
+                },
+                onNavigateToDistance = {
+                    navController.navigate(Destinations.DISTANCE_ROUTE)
+                }
+            )
+        }
+
+        composable(Destinations.DISTANCE_ROUTE) {
+            DistanceScreen(
+                onNavigateToTime = {
+                    navController.popBackStack(Destinations.TIMER_ROUTE, inclusive = false)
                 },
                 onNavigateToSettings = {
                     navController.navigate(Destinations.SETTINGS_ROUTE)

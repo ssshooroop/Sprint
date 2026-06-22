@@ -32,7 +32,8 @@ class SettingsRepository @Inject constructor(
             prepMs = p[KEY_PREP] ?: DEFAULT.prepMs,
             workMs = p[KEY_WORK] ?: DEFAULT.workMs,
             restMs = p[KEY_REST] ?: DEFAULT.restMs,
-            rounds = p[KEY_ROUNDS] ?: DEFAULT.rounds
+            rounds = p[KEY_ROUNDS] ?: DEFAULT.rounds,
+            distanceM = p[KEY_DISTANCE] ?: DEFAULT.distanceM
         )
     }
 
@@ -42,6 +43,7 @@ class SettingsRepository @Inject constructor(
             p[KEY_WORK] = config.workMs
             p[KEY_REST] = config.restMs
             p[KEY_ROUNDS] = config.rounds
+            p[KEY_DISTANCE] = config.distanceM
         }
     }
 
@@ -51,5 +53,6 @@ class SettingsRepository @Inject constructor(
         val KEY_WORK = longPreferencesKey("work_ms")
         val KEY_REST = longPreferencesKey("rest_ms")
         val KEY_ROUNDS = intPreferencesKey("rounds")
+        val KEY_DISTANCE = intPreferencesKey("distance_m")
     }
 }

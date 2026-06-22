@@ -104,6 +104,9 @@ dependencies {
     // Settings storage (single source of truth shared across screens)
     implementation("androidx.datastore:datastore-preferences:1.0.0")
 
+    // Location (Doppler speed for distance mode)
+    implementation("com.google.android.gms:play-services-location:21.0.1")
+
     // Charts
     implementation("com.github.PhilJay:MPAndroidChart:3.1.0")
     implementation("com.github.tehras:charts:0.2.4-alpha")

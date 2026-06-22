@@ -37,12 +37,19 @@ enum class Cue {
     FINISH
 }
 
-/** User-configurable interval plan. All durations are in milliseconds. */
+/**
+ * User-configurable interval plan, shared by both modes.
+ *
+ * Time mode uses [prepMs]/[workMs]/[restMs]/[rounds]. Distance mode uses
+ * [prepMs]/[distanceM]/[restMs]/[rounds] — the work phase ends at [distanceM]
+ * metres instead of after [workMs]. Durations are in milliseconds.
+ */
 data class IntervalConfig(
     val prepMs: Long = 5_000,
     val workMs: Long = 30_000,
     val restMs: Long = 30_000,
-    val rounds: Int = 6
+    val rounds: Int = 6,
+    val distanceM: Int = 200
 ) {
     init {
         require(rounds >= 1) { "rounds must be >= 1" }

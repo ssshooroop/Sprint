@@ -47,7 +47,8 @@ fun TimerScreen(
     viewModel: TimerViewModel = hiltViewModel(),
     onNavigateToHistory: () -> Unit,
     onNavigateToProgress: () -> Unit,
-    onNavigateToSettings: () -> Unit
+    onNavigateToSettings: () -> Unit,
+    onNavigateToDistance: () -> Unit
 ) {
     val runState by viewModel.runState.collectAsState()
     val snapshot by viewModel.snapshot.collectAsState()
@@ -70,6 +71,16 @@ fun TimerScreen(
             verticalArrangement = Arrangement.Center,
             modifier = Modifier.padding(8.dp)
         ) {
+            if (runState == RunState.IDLE) {
+                Text(
+                    text = "Дистанция →",
+                    color = Color.Gray,
+                    fontSize = 11.sp,
+                    modifier = Modifier.clickable { onNavigateToDistance() }
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+            }
+
             Box(
                 modifier = Modifier.size(132.dp),
                 contentAlignment = Alignment.Center

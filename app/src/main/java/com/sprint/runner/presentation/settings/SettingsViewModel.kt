@@ -19,6 +19,7 @@ enum class SettingField(
 ) {
     PREP("Подготовка", "с", (0..15).toList()),
     WORK("Спринт", "с", (5..120 step 5).toList()),
+    DISTANCE("Дистанция", "м", (20..400 step 10).toList()),
     REST("Отдых", "с", (5..180 step 5).toList()),
     ROUNDS("Раунды", "", (1..20).toList());
 
@@ -26,6 +27,7 @@ enum class SettingField(
     fun valueOf(c: IntervalConfig): Int = when (this) {
         PREP -> (c.prepMs / 1000).toInt()
         WORK -> (c.workMs / 1000).toInt()
+        DISTANCE -> c.distanceM
         REST -> (c.restMs / 1000).toInt()
         ROUNDS -> c.rounds
     }
@@ -34,6 +36,7 @@ enum class SettingField(
     fun apply(c: IntervalConfig, value: Int): IntervalConfig = when (this) {
         PREP -> c.copy(prepMs = value * 1000L)
         WORK -> c.copy(workMs = value * 1000L)
+        DISTANCE -> c.copy(distanceM = value)
         REST -> c.copy(restMs = value * 1000L)
         ROUNDS -> c.copy(rounds = value)
     }

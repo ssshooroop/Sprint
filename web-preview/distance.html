@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sprint — Режим «По дистанции» (превью)</title>
+<style>
+  :root {
+    --prep:#ff9800; --work:#34c759; --rest:#2196f3; --idle:#9e9e9e;
+    --bg:#0c0d10; --panel:#16181d; --line:#262a31; --text:#f2f4f7; --muted:#8b93a1;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,sans-serif;
+    background:radial-gradient(circle at 50% 0%,#181a20,var(--bg)); color:var(--text);
+    min-height:100vh; display:flex; flex-direction:column; align-items:center; padding:24px 16px 60px; }
+  h1 { font-size:14px; font-weight:600; color:var(--muted); letter-spacing:.04em; margin:0 0 8px; text-transform:uppercase; }
+  .nav { font-size:12px; color:var(--muted); margin-bottom:18px; }
+  .nav a { color:#b0b8c4; text-decoration:none; }
+  .nav a:hover { color:#fff; }
+
+  .watch { width:300px; height:300px; border-radius:50%; background:#000;
+    box-shadow:0 0 0 10px #1b1d22,0 0 0 12px #2c2f36,0 22px 50px rgba(0,0,0,.6);
+    position:relative; overflow:hidden; display:flex; align-items:center; justify-content:center; }
+  .ring { position:absolute; inset:0; transform:rotate(-90deg); }
+  .ring circle { fill:none; stroke-width:12; stroke-linecap:round; }
+  .ring .track { stroke:#24262c; }
+  .ring .bar { stroke:var(--idle); transition:stroke .25s; }
+  .face { display:flex; flex-direction:column; align-items:center; gap:3px; z-index:2; padding:0 20px; }
+  .big { font-variant-numeric:tabular-nums; font-weight:800; font-size:46px; line-height:1; letter-spacing:-.02em; }
+  .big.flash { color:var(--work); animation:pop .25s ease; }
+  @keyframes pop { 0%{transform:scale(.7);opacity:.3} 100%{transform:scale(1);opacity:1} }
+  .label { font-size:13px; font-weight:600; letter-spacing:.02em; text-align:center; }
+  .plan { font-size:12px; color:var(--muted); font-variant-numeric:tabular-nums; }
+  .plan.tap { color:#b0b8c4; cursor:pointer; }
+  .controls { display:flex; gap:12px; margin-top:12px; }
+  .btn { width:54px; height:54px; border-radius:50%; border:none; cursor:pointer; color:#fff;
+    font-weight:700; font-size:11px; transition:transform .08s; }
+  .btn:active { transform:scale(.93); }
+  .btn.go{background:var(--work);} .btn.stop{background:#f44336;} .btn.ghost{background:#2a2d34;}
+  .legend { display:flex; gap:14px; justify-content:center; margin-top:16px; font-size:11px; color:var(--muted); }
+  .legend i { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:5px; vertical-align:middle; }
+
+  /* settings */
+  .hidden { display:none; }
+  .list { width:100%; height:100%; overflow-y:auto; padding:60px 26px; z-index:2; }
+  .list::-webkit-scrollbar{display:none;}
+  .list h2 { text-align:center; font-size:16px; margin:0 0 12px; }
+  .chip { display:flex; justify-content:space-between; align-items:center; background:#20242b; border:none;
+    width:100%; color:var(--text); padding:13px 18px; border-radius:24px; margin-bottom:9px; cursor:pointer; font-size:14px; font-family:inherit; }
+  .chip:hover{background:#2a2f37;} .chip b{font-variant-numeric:tabular-nums;color:var(--work);}
+  .picker-wrap { display:flex; flex-direction:column; align-items:center; z-index:2; gap:10px; }
+  .picker-title{font-size:13px;color:var(--muted);}
+  .drum { height:160px; width:160px; overflow-y:scroll; scroll-snap-type:y mandatory; scrollbar-width:none; }
+  .drum::-webkit-scrollbar{display:none;}
+  .opt { height:40px; scroll-snap-align:center; display:flex; align-items:center; justify-content:center;
+    font-size:22px; font-weight:700; color:#4a4f57; font-variant-numeric:tabular-nums; transition:color .12s,transform .12s; }
+  .opt.sel{color:#fff; transform:scale(1.15);}
+  .ok{background:var(--work);color:#fff;border:none;width:62px;height:62px;border-radius:50%;font-weight:700;cursor:pointer;}
+
+  .results { margin-top:20px; width:320px; max-width:92vw; font-size:13px; }
+  .results .r { display:flex; justify-content:space-between; padding:6px 4px; border-bottom:1px solid var(--line); color:var(--muted); }
+  .results .r b { color:var(--text); font-variant-numeric:tabular-nums; }
+  .sim { margin-top:14px; font-size:12px; color:var(--muted); display:flex; align-items:center; gap:8px; }
+  .hint { margin-top:16px; width:320px; max-width:92vw; font-size:12px; color:var(--muted); line-height:1.5; text-align:center; }
+</style>
+</head>
+<body>
+  <h1>Sprint · по дистанции · превью</h1>
+  <div class="nav"><a href="timer.html">← Время</a> &nbsp;·&nbsp; <b style="color:#fff">Дистанция</b> &nbsp;·&nbsp; <span id="simNote">симуляция GPS</span></div>
+
+  <div id="screen-run" class="screen">
+    <div class="watch">
+      <svg class="ring" viewBox="0 0 300 300">
+        <circle class="track" cx="150" cy="150" r="138"></circle>
+        <circle class="bar" cx="150" cy="150" r="138"></circle>
+      </svg>
+      <div class="face">
+        <div class="big" id="big">200 м</div>
+        <div class="label" id="label">Дистанция</div>
+        <div class="plan" id="plan"></div>
+        <div class="controls" id="controls"></div>
+      </div>
+    </div>
+    <div class="legend">
+      <span><i style="background:var(--prep)"></i>подготовка</span>
+      <span><i style="background:var(--work)"></i>спринт</span>
+      <span><i style="background:var(--rest)"></i>отдых</span>
+    </div>
+    <div class="results" id="results"></div>
+  </div>
+
+  <div id="screen-settings" class="screen hidden"><div class="watch"><div class="list" id="settingsList"></div></div></div>
+  <div id="screen-picker" class="screen hidden"><div class="watch"><div class="picker-wrap">
+    <div class="picker-title" id="pickerTitle"></div><div class="drum" id="drum"></div><button class="ok" id="pickerOk">OK</button>
+  </div></div></div>
+
+  <label class="sim"><input type="checkbox" id="snd" checked> звук</label>
+  <div class="hint">
+    Дистанция считается <b>интегрированием скорости</b> (модель Doppler), а не по координатам — как в Kotlin-движке
+    <code>DistanceTracker</code>. Скорость бегуна здесь смоделирована. На цели результат <b>защёлкивается</b>:
+    время рывка фиксируется в момент пересечения дистанции, дальше можно «выкатиться».
+  </div>
+
+<script>
+// ===== shared config (same localStorage as time mode) =====
+const DEFAULT = { prepMs:5000, workMs:30000, restMs:30000, rounds:6, distanceM:200 };
+function loadCfg(){ try { return Object.assign({}, DEFAULT, JSON.parse(localStorage.getItem('sprintCfg')||'{}')); } catch(e){ return Object.assign({},DEFAULT); } }
+function saveCfg(){ localStorage.setItem('sprintCfg', JSON.stringify(cfg)); }
+let cfg = loadCfg();
+function range(a,b,s){ const r=[]; for(let v=a;v<=b;v+=s) r.push(v); return r; }
+const FIELDS = [
+  { key:'distanceM', title:'Дистанция', unit:'м', mul:1, values:range(20,400,10) },
+  { key:'prepMs', title:'Подготовка', unit:'с', mul:1000, values:range(0,15,1) },
+  { key:'restMs', title:'Отдых', unit:'с', mul:1000, values:range(5,180,5) },
+  { key:'rounds', title:'Раунды', unit:'', mul:1, values:range(1,20,1) },
+];
+
+// ===== DistanceTracker (mirror of DistanceTracker.kt) =====
+function makeTracker(){ return { dist:0, lastT:-1, lastV:0 }; }
+function eff(v){ return (!isFinite(v) || v < 0.4) ? 0 : v; }
+function trackAdd(tr, v, tMs){
+  const ve = eff(v);
+  if (tr.lastT < 0){ tr.lastT=tMs; tr.lastV=ve; return {total:tr.dist,step:0,stepMs:0}; }
+  const dt = tMs - tr.lastT; tr.lastT = tMs;
+  if (dt<=0 || dt>3000){ tr.lastV=ve; return {total:tr.dist,step:0,stepMs:0}; }
+  const step = (tr.lastV+ve)/2 * (dt/1000); tr.dist += step; tr.lastV = ve;
+  return { total:tr.dist, step, stepMs:dt };
+}
+
+// ===== simulated runner speed (m/s) =====
+function simSpeed(workMs, round){
+  const t = workMs/1000;
+  const peak = 6.4 + ((round*7)%5)*0.45;          // vary pace per round
+  let v = peak * (1 - Math.exp(-t/1.2));           // accelerate ~2s
+  v += (Math.sin(t*6.3) + (Math.random()-0.5))*0.22; // GPS-like jitter
+  return Math.max(0, v);
+}
+
+// ===== feedback =====
+let actx=null;
+function beep(f,ms,vol=0.3){ if(!document.getElementById('snd').checked) return;
+  if(!actx) actx=new (window.AudioContext||window.webkitAudioContext)();
+  const o=actx.createOscillator(),g=actx.createGain(); o.frequency.value=f; o.type='square';
+  g.gain.setValueAtTime(vol,actx.currentTime); g.gain.exponentialRampToValueAtTime(0.0001,actx.currentTime+ms/1000);
+  o.connect(g); g.connect(actx.destination); o.start(); o.stop(actx.currentTime+ms/1000); }
+function buzz(p){ if(navigator.vibrate) navigator.vibrate(p); }
+function fire(c){ switch(c){
+  case 'TICK': beep(660,90); buzz(40); break;
+  case 'GO': beep(1040,320,0.45); buzz(350); flashGo(); break;
+  case 'REP': beep(520,200); buzz([120,90,120]); break;
+  case 'FINISH': beep(1040,180); setTimeout(()=>beep(1040,180),230); setTimeout(()=>beep(780,420),460); buzz([200,120,200,120,400]); break;
+}}
+
+// ===== state machine =====
+const RING_LEN = 2*Math.PI*138;
+const bar=document.querySelector('.bar'); bar.style.strokeDasharray=RING_LEN;
+const elBig=document.getElementById('big'), elLabel=document.getElementById('label'),
+      elPlan=document.getElementById('plan'), controls=document.getElementById('controls'),
+      elResults=document.getElementById('results');
+const PCOL={PREP:'var(--prep)',WORK:'var(--work)',REST:'var(--rest)',DONE:'var(--idle)',IDLE:'var(--idle)'};
+
+let run='IDLE', phase='IDLE', round=0, phaseStart=0, workStart=0, lastSec=-1, tr=makeTracker(), results=[], raf=null;
+
+function ceilSec(ms){ return Math.max(0,Math.ceil(ms/1000)); }
+function fmtUp(ms){ const t=Math.floor(ms/100),te=t%10,s=Math.floor(t/10)%60,m=Math.floor(t/600);
+  return m>0?`${m}:${String(s).padStart(2,'0')}.${te}`:`${String(s).padStart(2,'0')}.${te}`; }
+function flashGo(){ elBig.classList.remove('flash'); void elBig.offsetWidth; elBig.classList.add('flash'); }
+
+function enterPrep(){ phase='PREP'; phaseStart=performance.now(); lastSec=-1; }
+function enterWork(){ phase='WORK'; round++; workStart=performance.now(); tr=makeTracker(); fire('GO'); }
+function enterRestOrFinish(){ if(round>=cfg.rounds){ fire('FINISH'); finish(); } else { phase='REST'; phaseStart=performance.now(); lastSec=-1; } }
+function countdown(rem){ const s=ceilSec(rem); if(s>=1&&s<=3&&s!==lastSec){ lastSec=s; fire('TICK'); } }
+
+function loop(){
+  if(run!=='RUNNING') return;
+  const now=performance.now();
+  if(phase==='PREP'){
+    const rem=Math.max(0,cfg.prepMs-(now-phaseStart)); countdown(rem); render(rem,cfg.prepMs);
+    if(rem<=0) enterWork();
+  } else if(phase==='WORK'){
+    const prev=tr.dist;
+    const v=simSpeed(now-workStart, round);
+    const r=trackAdd(tr, v, now);
+    const target=cfg.distanceM;
+    render(0,0);
+    if(prev<target && r.total>=target){
+      const frac=r.step>0?(target-prev)/r.step:1;
+      const crossAbs=now - r.stepMs + frac*r.stepMs;
+      const repTime=Math.max(0, crossAbs-workStart);
+      results.push({round, timeMs:repTime, dist:target});
+      fire(round>=cfg.rounds?'FINISH':'REP');
+      enterRestOrFinish();
+    }
+  } else if(phase==='REST'){
+    const rem=Math.max(0,cfg.restMs-(now-phaseStart)); countdown(rem); render(rem,cfg.restMs);
+    if(rem<=0) enterWork();
+  }
+  raf=requestAnimationFrame(loop);
+}
+
+function bigText(){
+  if(run==='IDLE') return `${cfg.distanceM} м`;
+  if(phase==='PREP'||phase==='REST') return ceilSec(phase==='PREP'?cfg.prepMs-(performance.now()-phaseStart):cfg.restMs-(performance.now()-phaseStart));
+  if(phase==='WORK') return `${Math.round(tr.dist)} м`;
+  if(phase==='DONE') return results.length?fmtUp(results[results.length-1].timeMs):'—';
+  return `${cfg.distanceM} м`;
+}
+function labelText(){
+  if(run==='IDLE') return 'Дистанция';
+  if(phase==='PREP') return 'Подготовка';
+  if(phase==='WORK') return `Спринт ${round}/${cfg.rounds} · ${fmtUp(performance.now()-workStart)}`;
+  if(phase==='REST') return `Отдых ${round}/${cfg.rounds}`;
+  if(phase==='DONE') return 'Готово!';
+  return '';
+}
+function render(rem,total){
+  elBig.textContent=bigText(); elLabel.textContent=labelText();
+  const col=run==='IDLE'?'var(--idle)':PCOL[phase]; bar.style.stroke=col; elLabel.style.color=col;
+  let prog=0;
+  if(phase==='WORK') prog=cfg.distanceM>0?tr.dist/cfg.distanceM:0;
+  else if(phase==='PREP'||phase==='REST') prog=total>0?1-rem/total:0;
+  bar.style.strokeDashoffset=RING_LEN*(1-Math.min(1,Math.max(0,prog)));
+  if(run==='IDLE'){ elPlan.textContent=`${cfg.distanceM}м × ${cfg.rounds} · отдых ${cfg.restMs/1000}с  ⚙`; elPlan.classList.add('tap'); }
+  else if(run==='DONE'){ elPlan.classList.remove('tap'); elPlan.textContent=`${results.length} рывк. · Σ ${fmtUp(results.reduce((a,r)=>a+r.timeMs,0))}`; }
+  else { elPlan.classList.remove('tap'); elPlan.textContent=`цель ${cfg.distanceM} м`; }
+  renderResults();
+}
+function renderResults(){
+  if(run!=='DONE' || !results.length){ elResults.innerHTML=''; return; }
+  elResults.innerHTML = results.map(r=>`<div class="r"><span>Рывок ${r.round} · ${r.dist} м</span><b>${fmtUp(r.timeMs)}</b></div>`).join('');
+}
+elPlan.addEventListener('click', ()=>{ if(run==='IDLE') openSettings(); });
+
+function start(){ if(run==='RUNNING')return; results=[]; round=0; tr=makeTracker(); run='RUNNING';
+  if(!actx) actx=new (window.AudioContext||window.webkitAudioContext)(); enterPrep(); buildControls(); loop(); }
+function stop(){ cancelAnimationFrame(raf); finish(); }
+function finish(){ cancelAnimationFrame(raf); phase='DONE'; run='DONE'; render(0,0); buildControls(); }
+function reset(){ cancelAnimationFrame(raf); run='IDLE'; phase='IDLE'; round=0; results=[]; tr=makeTracker(); render(0,0); buildControls(); }
+
+function mkBtn(t,c,f){ const b=document.createElement('button'); b.className='btn '+c; b.textContent=t; b.onclick=f; return b; }
+function buildControls(){ controls.innerHTML='';
+  if(run==='IDLE') controls.append(mkBtn('СТАРТ','go',start));
+  if(run==='RUNNING') controls.append(mkBtn('СТОП','stop',stop));
+  if(run==='DONE') controls.append(mkBtn('НОВЫЙ','ghost',reset));
+}
+
+// ===== settings hub (shared) =====
+function showScreen(n){ for(const s of ['run','settings','picker']) document.getElementById('screen-'+s).classList.toggle('hidden', s!==n); }
+function openSettings(){ renderList(); showScreen('settings'); }
+function closeSettings(){ showScreen('run'); reset(); }
+function renderList(){ const l=document.getElementById('settingsList'); l.innerHTML='<h2>Настройки</h2>';
+  FIELDS.forEach(f=>{ const c=document.createElement('button'); c.className='chip';
+    c.innerHTML=`<span>${f.title}</span><b>${cfg[f.key]/f.mul}${f.unit}</b>`; c.onclick=()=>openPicker(f); l.append(c); });
+  const b=document.createElement('button'); b.className='chip'; b.style.justifyContent='center'; b.style.marginTop='6px';
+  b.innerHTML='<span>← Готово</span>'; b.onclick=closeSettings; l.append(b);
+}
+let pf=null;
+function openPicker(f){ pf=f; document.getElementById('pickerTitle').textContent=f.title;
+  const d=document.getElementById('drum'); d.innerHTML='';
+  const p1=document.createElement('div'); p1.style.height='60px'; d.append(p1);
+  f.values.forEach(v=>{ const o=document.createElement('div'); o.className='opt'; o.textContent=`${v}${f.unit}`; d.append(o); });
+  const p2=document.createElement('div'); p2.style.height='60px'; d.append(p2);
+  showScreen('picker'); d.scrollTop=Math.max(0,f.values.indexOf(cfg[f.key]/f.mul))*40; selDrum();
+}
+function drumIdx(){ return Math.round(document.getElementById('drum').scrollTop/40); }
+function selDrum(){ const o=document.querySelectorAll('#drum .opt'); const i=drumIdx(); o.forEach((x,k)=>x.classList.toggle('sel',k===i)); }
+document.getElementById('drum').addEventListener('scroll', selDrum);
+document.getElementById('pickerOk').addEventListener('click', ()=>{
+  const i=Math.max(0,Math.min(drumIdx(),pf.values.length-1)); cfg[pf.key]=pf.values[i]*pf.mul; saveCfg(); renderList(); showScreen('settings');
+});
+
+// init
+buildControls(); reset(); showScreen('run');
+</script>
+</body>
+</html>
