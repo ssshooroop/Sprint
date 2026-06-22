@@ -101,6 +101,9 @@ dependencies {
     implementation("androidx.room:room-ktx:${rootProject.extra.get("room_version")}")
     kapt("androidx.room:room-compiler:${rootProject.extra.get("room_version")}")
 
+    // Settings storage (single source of truth shared across screens)
+    implementation("androidx.datastore:datastore-preferences:1.0.0")
+
     // Charts
     implementation("com.github.PhilJay:MPAndroidChart:3.1.0")
     implementation("com.github.tehras:charts:0.2.4-alpha")

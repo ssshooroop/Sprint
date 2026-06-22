@@ -8,6 +8,7 @@ import androidx.wear.compose.navigation.composable
 import androidx.wear.compose.navigation.rememberSwipeDismissableNavController
 import com.sprint.runner.presentation.history.HistoryScreen
 import com.sprint.runner.presentation.progress.ProgressScreen
+import com.sprint.runner.presentation.settings.SettingsScreen
 import com.sprint.runner.presentation.timer.TimerScreen
 
 object Destinations {
@@ -34,10 +35,21 @@ fun AppNavigation(
                 },
                 onNavigateToProgress = {
                     navController.navigate(Destinations.PROGRESS_ROUTE)
+                },
+                onNavigateToSettings = {
+                    navController.navigate(Destinations.SETTINGS_ROUTE)
                 }
             )
         }
-        
+
+        composable(Destinations.SETTINGS_ROUTE) {
+            SettingsScreen(
+                onNavigateBack = {
+                    navController.popBackStack()
+                }
+            )
+        }
+
         composable(Destinations.HISTORY_ROUTE) {
             HistoryScreen(
                 onNavigateBack = {

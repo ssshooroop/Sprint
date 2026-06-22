@@ -1,238 +1,223 @@
 package com.sprint.runner.presentation.timer
 
+import android.os.SystemClock
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.sprint.runner.data.settings.SettingsRepository
 import com.sprint.runner.domain.model.Workout
 import com.sprint.runner.domain.model.WorkoutType
 import com.sprint.runner.domain.repository.WorkoutRepository
+import com.sprint.runner.domain.timer.Cue
+import com.sprint.runner.domain.timer.IntervalConfig
+import com.sprint.runner.domain.timer.IntervalTimeline
+import com.sprint.runner.domain.timer.Phase
+import com.sprint.runner.domain.timer.TimerSnapshot
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.time.LocalDateTime
 import javax.inject.Inject
 
-sealed class TimerState {
-    object Ready : TimerState()
-    data class Preparation(val remainingTime: Long) : TimerState()
-    data class Sprinting(val elapsedTime: Long, val currentCycle: Int, val totalCycles: Int) : TimerState()
-    data class Resting(val remainingTime: Long, val currentCycle: Int, val totalCycles: Int) : TimerState()
-    object Paused : TimerState()
-    data class Completed(val totalTime: Long) : TimerState()
-}
+/** Coarse run state the UI switches its controls on. */
+enum class RunState { IDLE, RUNNING, PAUSED, DONE }
 
+/** The selected workout mode. Distance is wired later — time mode is the focus now. */
 sealed class WorkoutMode {
     object TimeBased : WorkoutMode()
     data class DistanceBased(val distance: Int) : WorkoutMode()
 }
 
+/**
+ * Drives the time-based interval timer.
+ *
+ * Precision comes from [IntervalTimeline]: every frame we read the monotonic
+ * [SystemClock.elapsedRealtime] clock and ask the timeline "where are we at this
+ * elapsed time". Nothing is decremented, so the displayed time never drifts and
+ * survives a slow/janky frame. Phase transitions and beeps are derived from the
+ * same axis via [IntervalTimeline.cuesBetween].
+ */
 @HiltViewModel
 class TimerViewModel @Inject constructor(
-    private val workoutRepository: WorkoutRepository
+    private val workoutRepository: WorkoutRepository,
+    settingsRepository: SettingsRepository
 ) : ViewModel() {
-    
-    private val _timerState = MutableStateFlow<TimerState>(TimerState.Ready)
-    val timerState: StateFlow<TimerState> = _timerState.asStateFlow()
-    
+
+    private val _config = MutableStateFlow(IntervalConfig())
+    val config: StateFlow<IntervalConfig> = _config.asStateFlow()
+
+    init {
+        // Observe the shared settings store. While idle, keep the displayed plan
+        // and timeline in sync; a running workout is left untouched until it ends.
+        viewModelScope.launch {
+            settingsRepository.config.collect { cfg ->
+                _config.value = cfg
+                if (_runState.value == RunState.IDLE) {
+                    timeline = IntervalTimeline(cfg)
+                    _snapshot.value = idleSnapshot(cfg)
+                }
+            }
+        }
+    }
+
+    private val _runState = MutableStateFlow(RunState.IDLE)
+    val runState: StateFlow<RunState> = _runState.asStateFlow()
+
+    private val _snapshot = MutableStateFlow(idleSnapshot(IntervalConfig()))
+    val snapshot: StateFlow<TimerSnapshot> = _snapshot.asStateFlow()
+
     private val _workoutMode = MutableStateFlow<WorkoutMode>(WorkoutMode.TimeBased)
     val workoutMode: StateFlow<WorkoutMode> = _workoutMode.asStateFlow()
-    
-    private val _settings = MutableStateFlow(
-        TimerSettings(
-            prepTime = 10000L, // 10 seconds
-            sprintTime = 30000L, // 30 seconds
-            restTime = 60000L, // 60 seconds
-            totalCycles = 3
-        )
-    )
-    val settings: StateFlow<TimerSettings> = _settings.asStateFlow()
-    
-    private var timerJob: Job? = null
-    private var currentWorkout: Workout? = null
-    private var startTime: Long = 0L
-    private var pausedTime: Long = 0L
-    private var currentCycle: Int = 0
-    
+
+    /** One-shot feedback events (beeps / vibration). Collected by the screen. */
+    private val _cues = MutableSharedFlow<Cue>(extraBufferCapacity = 16)
+    val cues: SharedFlow<Cue> = _cues.asSharedFlow()
+
+    private var ticker: Job? = null
+    private var timeline = IntervalTimeline(_config.value)
+
+    /** Monotonic instant the workout axis maps its 0 to. Shifts on pause/resume. */
+    private var sessionStart = 0L
+
+    /** Elapsed on the workout axis when paused, so we can resume exactly. */
+    private var pausedElapsed = 0L
+
+    /** Last elapsed handed to cuesBetween, so each cue fires exactly once. */
+    private var lastCueElapsed = -1L
+
     fun setWorkoutMode(mode: WorkoutMode) {
         _workoutMode.value = mode
     }
-    
-    fun updateSettings(newSettings: TimerSettings) {
-        _settings.value = newSettings
-    }
-    
-    fun startWorkout() {
-        if (_timerState.value is TimerState.Paused) {
-            resumeWorkout()
-            return
-        }
-        
-        timerJob?.cancel()
-        
-        // Create new workout
-        currentWorkout = Workout(
-            dateTime = LocalDateTime.now(),
-            workoutType = when (_workoutMode.value) {
-                is WorkoutMode.TimeBased -> WorkoutType.TimeBased
-                is WorkoutMode.DistanceBased -> WorkoutType.DistanceBased(
-                    (_workoutMode.value as WorkoutMode.DistanceBased).distance
-                )
-            },
-            duration = 0L,
-            cycles = _settings.value.totalCycles,
-            prepTime = _settings.value.prepTime,
-            sprintTime = _settings.value.sprintTime,
-            restTime = _settings.value.restTime,
-            isCompleted = false
-        )
-        
-        startPreparation()
-    }
-    
-    private fun startPreparation() {
-        _timerState.value = TimerState.Preparation(_settings.value.prepTime)
-        startTime = System.currentTimeMillis()
-        currentCycle = 0
-        
-        timerJob = viewModelScope.launch {
-            var remainingTime = _settings.value.prepTime
-            while (remainingTime > 0) {
-                delay(100)
-                remainingTime -= 100
-                _timerState.value = TimerState.Preparation(remainingTime)
-            }
-            startSprinting()
+
+    /** Start / resume depending on current state. */
+    fun start() {
+        when (_runState.value) {
+            RunState.RUNNING -> return
+            RunState.PAUSED -> resume()
+            RunState.IDLE, RunState.DONE -> beginFresh()
         }
     }
-    
-    private fun startSprinting() {
-        currentCycle++
-        _timerState.value = TimerState.Sprinting(0L, currentCycle, _settings.value.totalCycles)
-        startTime = System.currentTimeMillis()
-        
-        timerJob = viewModelScope.launch {
-            var elapsedTime = 0L
-            val targetTime = when (_workoutMode.value) {
-                is WorkoutMode.TimeBased -> _settings.value.sprintTime
-                is WorkoutMode.DistanceBased -> Long.MAX_VALUE // Run until stopped
-            }
-            
-            while (elapsedTime < targetTime) {
-                delay(100)
-                elapsedTime = System.currentTimeMillis() - startTime
-                _timerState.value = TimerState.Sprinting(
-                    elapsedTime = elapsedTime,
-                    currentCycle = currentCycle,
-                    totalCycles = _settings.value.totalCycles
-                )
-            }
-            
-            if (currentCycle < _settings.value.totalCycles) {
-                startResting()
-            } else {
-                completeWorkout()
-            }
-        }
+
+    private fun beginFresh() {
+        timeline = IntervalTimeline(_config.value)
+        sessionStart = SystemClock.elapsedRealtime()
+        pausedElapsed = 0L
+        lastCueElapsed = -1L
+        _runState.value = RunState.RUNNING
+        runTicker()
     }
-    
-    private fun startResting() {
-        _timerState.value = TimerState.Resting(_settings.value.restTime, currentCycle, _settings.value.totalCycles)
-        startTime = System.currentTimeMillis()
-        
-        timerJob = viewModelScope.launch {
-            var remainingTime = _settings.value.restTime
-            while (remainingTime > 0) {
-                delay(100)
-                remainingTime -= 100
-                _timerState.value = TimerState.Resting(remainingTime, currentCycle, _settings.value.totalCycles)
-            }
-            startSprinting() // Next cycle
-        }
+
+    private fun resume() {
+        // Re-anchor the axis so "now" maps back to where we paused.
+        sessionStart = SystemClock.elapsedRealtime() - pausedElapsed
+        _runState.value = RunState.RUNNING
+        runTicker()
     }
-    
-    fun pauseWorkout() {
-        timerJob?.cancel()
-        pausedTime = when (val state = _timerState.value) {
-            is TimerState.Preparation -> state.remainingTime
-            is TimerState.Sprinting -> state.elapsedTime
-            is TimerState.Resting -> state.remainingTime
-            else -> 0L
-        }
-        _timerState.value = TimerState.Paused
-    }
-    
-    private fun resumeWorkout() {
-        when (val state = _timerState.value) {
-            is TimerState.Paused -> {
-                // Resume based on previous state
-                timerJob = viewModelScope.launch {
-                    // Implementation for resuming from paused state
+
+    private fun runTicker() {
+        ticker?.cancel()
+        ticker = viewModelScope.launch {
+            while (_runState.value == RunState.RUNNING) {
+                val elapsed = SystemClock.elapsedRealtime() - sessionStart
+                emitFrame(elapsed)
+                if (elapsed >= timeline.totalDurationMs) {
+                    finish()
+                    break
                 }
-            }
-            else -> {}
-        }
-    }
-    
-    fun stopWorkout() {
-        timerJob?.cancel()
-        
-        val finalTime = when (val state = _timerState.value) {
-            is TimerState.Sprinting -> state.elapsedTime
-            else -> 0L
-        }
-        
-        currentWorkout?.let { workout ->
-            val completedWorkout = workout.copy(
-                duration = finalTime,
-                isCompleted = true
-            )
-            
-            viewModelScope.launch {
-                workoutRepository.saveWorkout(completedWorkout)
+                delay(TICK_MS)
             }
         }
-        
-        _timerState.value = TimerState.Completed(finalTime)
     }
-    
-    fun completeWorkout() {
-        timerJob?.cancel()
-        
-        currentWorkout?.let { workout ->
-            val completedWorkout = workout.copy(
-                duration = _settings.value.sprintTime,
-                isCompleted = true
-            )
-            
-            viewModelScope.launch {
-                workoutRepository.saveWorkout(completedWorkout)
-            }
+
+    private suspend fun emitFrame(elapsed: Long) {
+        _snapshot.value = timeline.snapshotAt(elapsed)
+        for (cue in timeline.cuesBetween(lastCueElapsed, elapsed)) {
+            _cues.emit(cue)
         }
-        
-        _timerState.value = TimerState.Completed(_settings.value.sprintTime)
+        lastCueElapsed = elapsed
     }
-    
-    fun resetWorkout() {
-        timerJob?.cancel()
-        _timerState.value = TimerState.Ready
-        currentWorkout = null
-        startTime = 0L
-        pausedTime = 0L
-        currentCycle = 0
+
+    fun pause() {
+        if (_runState.value != RunState.RUNNING) return
+        ticker?.cancel()
+        pausedElapsed = (SystemClock.elapsedRealtime() - sessionStart)
+            .coerceIn(0, timeline.totalDurationMs)
+        _runState.value = RunState.PAUSED
     }
-    
+
+    /** Manual stop — records whatever was completed so far. */
+    fun stop() {
+        ticker?.cancel()
+        val elapsed = currentElapsed()
+        _snapshot.value = timeline.snapshotAt(elapsed)
+        _runState.value = RunState.DONE
+        saveWorkout(elapsed)
+    }
+
+    private fun finish() {
+        _snapshot.value = timeline.snapshotAt(timeline.totalDurationMs)
+        _runState.value = RunState.DONE
+        saveWorkout(timeline.totalDurationMs)
+    }
+
+    fun reset() {
+        ticker?.cancel()
+        _runState.value = RunState.IDLE
+        _snapshot.value = idleSnapshot(_config.value)
+        sessionStart = 0L
+        pausedElapsed = 0L
+        lastCueElapsed = -1L
+    }
+
+    private fun currentElapsed(): Long = when (_runState.value) {
+        RunState.PAUSED -> pausedElapsed
+        else -> (SystemClock.elapsedRealtime() - sessionStart)
+            .coerceIn(0, timeline.totalDurationMs)
+    }
+
+    private fun saveWorkout(durationMs: Long) {
+        val cfg = _config.value
+        val workout = Workout(
+            dateTime = LocalDateTime.now(),
+            workoutType = WorkoutType.TimeBased,
+            duration = durationMs,
+            cycles = cfg.rounds,
+            prepTime = cfg.prepMs,
+            sprintTime = cfg.workMs,
+            restTime = cfg.restMs,
+            isCompleted = durationMs >= timeline.totalDurationMs
+        )
+        viewModelScope.launch { workoutRepository.saveWorkout(workout) }
+    }
+
     override fun onCleared() {
         super.onCleared()
-        timerJob?.cancel()
+        ticker?.cancel()
+    }
+
+    companion object {
+        /** ~30 fps display refresh; precision is independent of this value. */
+        private const val TICK_MS = 33L
+
+        private fun idleSnapshot(cfg: IntervalConfig): TimerSnapshot {
+            val total = IntervalTimeline(cfg).totalDurationMs
+            return TimerSnapshot(
+                phase = Phase.IDLE,
+                round = 0,
+                totalRounds = cfg.rounds,
+                phaseTotalMs = cfg.workMs,
+                phaseElapsedMs = 0,
+                phaseRemainingMs = cfg.workMs,
+                countUp = true,
+                totalElapsedMs = 0,
+                totalDurationMs = total
+            )
+        }
     }
 }
-
-data class TimerSettings(
-    val prepTime: Long,
-    val sprintTime: Long,
-    val restTime: Long,
-    val totalCycles: Int
-)

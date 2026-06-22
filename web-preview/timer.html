@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sprint — Таймер по времени (превью)</title>
+<style>
+  :root {
+    --prep: #ff9800;
+    --work: #34c759;
+    --rest: #2196f3;
+    --idle: #9e9e9e;
+    --bg: #0c0d10;
+    --panel: #16181d;
+    --line: #262a31;
+    --text: #f2f4f7;
+    --muted: #8b93a1;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: radial-gradient(circle at 50% 0%, #181a20, var(--bg));
+    color: var(--text);
+    min-height: 100vh;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 28px 16px 60px;
+  }
+  h1 { font-size: 14px; font-weight: 600; color: var(--muted); letter-spacing: .04em; margin: 0 0 20px; text-transform: uppercase; }
+
+  /* --- Round watch --- */
+  .watch {
+    width: 300px; height: 300px; border-radius: 50%;
+    background: #000;
+    box-shadow: 0 0 0 10px #1b1d22, 0 0 0 12px #2c2f36, 0 22px 50px rgba(0,0,0,.6);
+    position: relative; overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .ring { position: absolute; inset: 0; transform: rotate(-90deg); }
+  .ring circle { fill: none; stroke-width: 12; stroke-linecap: round; }
+  .ring .track { stroke: #24262c; }
+  .ring .bar  { stroke: var(--idle); transition: stroke .25s; }
+
+  .face { display: flex; flex-direction: column; align-items: center; gap: 3px; z-index: 2; padding: 0 20px; }
+  .big { font-variant-numeric: tabular-nums; font-weight: 800; font-size: 48px; line-height: 1; letter-spacing: -.02em; }
+  .big.flash { color: var(--work); animation: pop .25s ease; }
+  @keyframes pop { 0%{ transform: scale(.7); opacity:.3 } 100%{ transform: scale(1); opacity:1 } }
+  .label { font-size: 15px; font-weight: 600; letter-spacing: .03em; }
+  .plan { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .plan.tap { color: #b0b8c4; cursor: pointer; }
+  .plan.tap:hover { color: #fff; }
+
+  /* --- Controls (inside the watch face) --- */
+  .controls { display: flex; gap: 12px; margin-top: 12px; }
+  .btn {
+    width: 54px; height: 54px; border-radius: 50%; border: none; cursor: pointer;
+    color: #fff; font-weight: 700; font-size: 11px; letter-spacing: .02em;
+    transition: transform .08s, filter .15s;
+  }
+  .btn:active { transform: scale(.93); }
+  .btn.go { background: var(--work); }
+  .btn.pause { background: #ffc107; color: #1a1a1a; }
+  .btn.stop { background: #f44336; }
+  .btn.ghost { background: #2a2d34; }
+  .legend { display: flex; gap: 14px; justify-content: center; margin-top: 18px; font-size: 11px; color: var(--muted); }
+  .legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
+
+  /* --- Settings list (inside watch) --- */
+  .screen { display: flex; flex-direction: column; align-items: center; }
+  .hidden { display: none; }
+  .list { width: 100%; height: 100%; overflow-y: auto; padding: 64px 26px; z-index: 2; }
+  .list::-webkit-scrollbar { display: none; }
+  .list h2 { text-align: center; font-size: 16px; margin: 0 0 12px; }
+  .chip {
+    display: flex; justify-content: space-between; align-items: center;
+    background: #20242b; border: none; width: 100%; color: var(--text);
+    padding: 13px 18px; border-radius: 24px; margin-bottom: 9px; cursor: pointer;
+    font-size: 14px; font-family: inherit;
+  }
+  .chip:hover { background: #2a2f37; }
+  .chip b { font-variant-numeric: tabular-nums; color: var(--work); }
+
+  /* --- Drum picker (inside watch) --- */
+  .picker-wrap { display: flex; flex-direction: column; align-items: center; z-index: 2; gap: 10px; }
+  .picker-title { font-size: 13px; color: var(--muted); }
+  .drum {
+    height: 160px; width: 150px; overflow-y: scroll; scroll-snap-type: y mandatory;
+    -ms-overflow-style: none; scrollbar-width: none; position: relative;
+    mask-image: linear-gradient(transparent, #000 32%, #000 68%, transparent);
+  }
+  .drum::-webkit-scrollbar { display: none; }
+  .opt {
+    height: 40px; scroll-snap-align: center; display: flex; align-items: center; justify-content: center;
+    font-size: 24px; font-weight: 700; color: #4a4f57; font-variant-numeric: tabular-nums;
+    transition: color .12s, transform .12s;
+  }
+  .opt.sel { color: #fff; transform: scale(1.18); }
+  .ok { background: var(--work); color:#fff; border:none; width:62px;height:62px;border-radius:50%;font-weight:700;cursor:pointer; }
+  .hint { margin-top: 18px; width: 320px; max-width: 92vw; font-size: 12px; color: var(--muted); line-height: 1.5; text-align: center; }
+  .sound { margin-top: 14px; font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+</style>
+</head>
+<body>
+  <h1>Sprint · таймер по времени · превью</h1>
+
+  <!-- ===== TIMER SCREEN ===== -->
+  <div id="screen-timer" class="screen">
+    <div class="watch">
+      <svg class="ring" viewBox="0 0 300 300">
+        <circle class="track" cx="150" cy="150" r="138"></circle>
+        <circle class="bar" cx="150" cy="150" r="138"></circle>
+      </svg>
+      <div class="face">
+        <div class="big" id="big">00.0</div>
+        <div class="label" id="label">Готов</div>
+        <div class="plan" id="plan"></div>
+        <div class="controls" id="controls"></div>
+      </div>
+    </div>
+    <div class="legend">
+      <span><i style="background:var(--prep)"></i>подготовка</span>
+      <span><i style="background:var(--work)"></i>спринт</span>
+      <span><i style="background:var(--rest)"></i>отдых</span>
+    </div>
+  </div>
+
+  <!-- ===== SETTINGS SCREEN ===== -->
+  <div id="screen-settings" class="screen hidden">
+    <div class="watch">
+      <div class="list" id="settingsList"></div>
+    </div>
+  </div>
+
+  <!-- ===== PICKER SCREEN ===== -->
+  <div id="screen-picker" class="screen hidden">
+    <div class="watch">
+      <div class="picker-wrap">
+        <div class="picker-title" id="pickerTitle"></div>
+        <div class="drum" id="drum"></div>
+        <button class="ok" id="pickerOk">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <label class="sound"><input type="checkbox" id="snd" checked> звук (бип вместо «выстрела» — заглушка)</label>
+  <div class="hint">
+    Логика таймлайна 1:1 как в Kotlin-движке: время от монотонной метки, без дрейфа.
+    Настройки — единый экран с барабанными скроллерами (как Picker в Wear OS), значения хранятся локально.
+    Тапни план под цифрами, чтобы открыть настройки.
+  </div>
+
+<script>
+// ================= Config (persisted, mirrors DataStore) =================
+const DEFAULT = { prepMs:5000, workMs:30000, restMs:30000, rounds:6 };
+function loadCfg(){ try { return Object.assign({}, DEFAULT, JSON.parse(localStorage.getItem('sprintCfg')||'{}')); } catch(e){ return Object.assign({}, DEFAULT); } }
+function saveCfg(){ localStorage.setItem('sprintCfg', JSON.stringify(cfg)); }
+let cfg = loadCfg();
+
+function range(a,b,step){ const r=[]; for(let v=a; v<=b; v+=step) r.push(v); return r; }
+const FIELDS = [
+  { key:'prepMs', title:'Подготовка', unit:'с', mul:1000, values: range(0,15,1)  },
+  { key:'workMs', title:'Спринт',     unit:'с', mul:1000, values: range(5,120,5) },
+  { key:'restMs', title:'Отдых',      unit:'с', mul:1000, values: range(5,180,5) },
+  { key:'rounds', title:'Раунды',     unit:'',  mul:1,    values: range(1,20,1)  },
+];
+
+// ================= Timeline (mirror of IntervalTimeline.kt) =================
+function buildTimeline(c) {
+  const segs = []; let t = 0;
+  if (c.prepMs > 0) { segs.push({ phase:'PREP', round:0, start:t, duration:c.prepMs }); t += c.prepMs; }
+  for (let r = 1; r <= c.rounds; r++) {
+    segs.push({ phase:'WORK', round:r, start:t, duration:c.workMs }); t += c.workMs;
+    if (r < c.rounds && c.restMs > 0) { segs.push({ phase:'REST', round:r, start:t, duration:c.restMs }); t += c.restMs; }
+  }
+  return { segs, total: segs.reduce((a,s)=>a+s.duration,0), cfg:c };
+}
+function snapshotAt(tl, elapsed) {
+  const e = Math.max(0, Math.min(elapsed, tl.total));
+  if (e >= tl.total) return { phase:'DONE', round:tl.cfg.rounds, total:tl.cfg.rounds, phaseTotal:0, phaseElapsed:0, phaseRemaining:0, totalElapsed:tl.total };
+  const s = tl.segs.find(s => e >= s.start && e < s.start + s.duration);
+  const inSeg = e - s.start;
+  return { phase:s.phase, round:s.round, total:tl.cfg.rounds, phaseTotal:s.duration, phaseElapsed:inSeg, phaseRemaining:s.duration - inSeg, totalElapsed:e };
+}
+function crossed(m, prev, now) { return m > prev && m <= now; }
+function cuesBetween(tl, prev, now) {
+  if (now <= prev) return [];
+  const cues = [];
+  for (const s of tl.segs) {
+    if (s.phase !== 'WORK') continue;
+    if (crossed(s.start, prev, now)) cues.push('GO');
+    const end = s.start + s.duration;
+    if (end < tl.total && crossed(end, prev, now)) cues.push('WORK_END');
+  }
+  for (const s of tl.segs) {
+    if (s.phase !== 'PREP' && s.phase !== 'REST') continue;
+    const end = s.start + s.duration;
+    for (let k = 1; k <= 3; k++) { const at = end - k*1000; if (at > s.start && crossed(at, prev, now)) cues.push('COUNTDOWN_TICK'); }
+  }
+  if (crossed(tl.total, prev, now)) cues.push('FINISH');
+  return cues;
+}
+
+// ================= Feedback =================
+let actx = null;
+function beep(freq, ms, vol=0.3) {
+  if (!document.getElementById('snd').checked) return;
+  if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+  const o = actx.createOscillator(), g = actx.createGain();
+  o.frequency.value = freq; o.type = 'square';
+  g.gain.setValueAtTime(vol, actx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime + ms/1000);
+  o.connect(g); g.connect(actx.destination); o.start(); o.stop(actx.currentTime + ms/1000);
+}
+function buzz(p) { if (navigator.vibrate) navigator.vibrate(p); }
+function fire(cue) {
+  switch (cue) {
+    case 'COUNTDOWN_TICK': beep(660, 90); buzz(40); break;
+    case 'GO': beep(1040, 320, 0.45); buzz(350); flashGo(); break;
+    case 'WORK_END': beep(520, 200); buzz([120,90,120]); break;
+    case 'FINISH': beep(1040,180); setTimeout(()=>beep(1040,180),230); setTimeout(()=>beep(780,420),460); buzz([200,120,200,120,400]); break;
+  }
+}
+
+// ================= Timer state / loop =================
+const RING_LEN = 2 * Math.PI * 138;
+const bar = document.querySelector('.bar');
+bar.style.strokeDasharray = RING_LEN;
+const elBig = document.getElementById('big'), elLabel = document.getElementById('label'),
+      elPlan = document.getElementById('plan'), controls = document.getElementById('controls');
+const PHASE_COLOR = { PREP:'var(--prep)', WORK:'var(--work)', REST:'var(--rest)', DONE:'var(--idle)', IDLE:'var(--idle)' };
+
+let tl = buildTimeline(cfg);
+let run = 'IDLE', sessionStart = 0, pausedElapsed = 0, lastCue = -1, raf = null;
+
+function ceilSec(ms){ return Math.max(0, Math.ceil(ms/1000)); }
+function fmtUp(ms){
+  const t = Math.floor(ms/100), tenths = t%10, s = Math.floor(t/10)%60, m = Math.floor(t/600);
+  return m>0 ? `${m}:${String(s).padStart(2,'0')}.${tenths}` : `${String(s).padStart(2,'0')}.${tenths}`;
+}
+function bigText(s){
+  if (run==='IDLE') return '00.0';
+  if (s.phase==='PREP') return ceilSec(s.phaseRemaining);
+  if (s.phase==='WORK') return s.phaseElapsed<700 ? 'GO' : fmtUp(s.phaseElapsed);
+  if (s.phase==='REST') return ceilSec(s.phaseRemaining);
+  if (s.phase==='DONE') return fmtUp(s.totalElapsed);
+  return '00.0';
+}
+function phaseLabel(s){
+  if (run==='IDLE') return 'Готов';
+  if (run==='PAUSED') return 'Пауза';
+  if (s.phase==='PREP') return 'Подготовка';
+  if (s.phase==='WORK') return `Спринт ${s.round}/${s.total}`;
+  if (s.phase==='REST') return `Отдых ${s.round}/${s.total}`;
+  if (s.phase==='DONE') return 'Готово!';
+  return '';
+}
+function flashGo(){ elBig.classList.remove('flash'); void elBig.offsetWidth; elBig.classList.add('flash'); }
+
+function render(s){
+  elBig.textContent = bigText(s);
+  elLabel.textContent = phaseLabel(s);
+  const col = run==='IDLE' ? 'var(--idle)' : PHASE_COLOR[s.phase];
+  bar.style.stroke = col; elLabel.style.color = col;
+  const prog = run==='IDLE' ? 0 : (s.phaseTotal>0 ? s.phaseElapsed/s.phaseTotal : 0);
+  bar.style.strokeDashoffset = RING_LEN * (1 - Math.min(1, prog));
+  if (run==='IDLE') { elPlan.textContent = `${cfg.workMs/1000}с / ${cfg.restMs/1000}с × ${cfg.rounds}  ⚙`; elPlan.classList.add('tap'); }
+  else { elPlan.classList.remove('tap'); elPlan.textContent = (run==='DONE') ? `Σ ${fmtUp(s.totalElapsed)}` : `Σ ${fmtUp(s.totalElapsed)} / ${fmtUp(tl.total)}`; }
+}
+elPlan.addEventListener('click', () => { if (run==='IDLE') openSettings(); });
+
+function loop(){
+  if (run !== 'RUNNING') return;
+  const elapsed = performance.now() - sessionStart;
+  render(snapshotAt(tl, elapsed));
+  for (const c of cuesBetween(tl, lastCue, elapsed)) fire(c);
+  lastCue = elapsed;
+  if (elapsed >= tl.total) { run='DONE'; render(snapshotAt(tl, tl.total)); buildControls(); return; }
+  raf = requestAnimationFrame(loop);
+}
+function start(){
+  if (run==='RUNNING') return;
+  if (run==='PAUSED'){ sessionStart = performance.now() - pausedElapsed; run='RUNNING'; buildControls(); loop(); return; }
+  tl = buildTimeline(cfg); sessionStart = performance.now(); pausedElapsed = 0; lastCue = -1; run='RUNNING';
+  if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+  buildControls(); loop();
+}
+function pause(){ if (run!=='RUNNING') return; cancelAnimationFrame(raf); pausedElapsed = Math.min(performance.now()-sessionStart, tl.total); run='PAUSED'; buildControls(); }
+function stop(){ cancelAnimationFrame(raf); const e = run==='PAUSED'?pausedElapsed:Math.min(performance.now()-sessionStart, tl.total); run='DONE'; render(snapshotAt(tl, e)); buildControls(); }
+function reset(){ cancelAnimationFrame(raf); run='IDLE'; lastCue=-1; tl=buildTimeline(cfg); render(snapshotAt(tl,0)); buildControls(); }
+
+function mkBtn(text, cls, fn){ const b=document.createElement('button'); b.className='btn '+cls; b.textContent=text; b.onclick=fn; return b; }
+function buildControls(){
+  controls.innerHTML='';
+  if (run==='IDLE')    controls.append(mkBtn('СТАРТ','go',start));
+  if (run==='RUNNING') controls.append(mkBtn('ПАУЗА','pause',pause), mkBtn('СТОП','stop',stop));
+  if (run==='PAUSED')  controls.append(mkBtn('ПУСК','go',start), mkBtn('СТОП','stop',stop));
+  if (run==='DONE')    controls.append(mkBtn('НОВЫЙ','ghost',reset));
+}
+
+// ================= Screens =================
+function showScreen(name){
+  for (const s of ['timer','settings','picker']) document.getElementById('screen-'+s).classList.toggle('hidden', s!==name);
+}
+function openSettings(){ renderSettingsList(); showScreen('settings'); }
+function closeSettings(){ showScreen('timer'); reset(); }
+
+function renderSettingsList(){
+  const list = document.getElementById('settingsList');
+  list.innerHTML = '<h2>Настройки</h2>';
+  FIELDS.forEach(f => {
+    const chip = document.createElement('button');
+    chip.className = 'chip';
+    chip.innerHTML = `<span>${f.title}</span><b>${cfg[f.key]/f.mul}${f.unit}</b>`;
+    chip.onclick = () => openPicker(f);
+    list.append(chip);
+  });
+  const back = document.createElement('button');
+  back.className = 'chip'; back.style.justifyContent='center'; back.style.marginTop='6px';
+  back.innerHTML = '<span>← Готово</span>';
+  back.onclick = closeSettings;
+  list.append(back);
+}
+
+// ----- Drum picker -----
+let pickerField = null;
+function openPicker(f){
+  pickerField = f;
+  document.getElementById('pickerTitle').textContent = f.title;
+  const drum = document.getElementById('drum');
+  drum.innerHTML = '';
+  // spacers so first/last option can center within the 160px drum (item = 40px)
+  const pad = document.createElement('div'); pad.style.height='60px'; drum.append(pad);
+  f.values.forEach(v => { const o=document.createElement('div'); o.className='opt'; o.dataset.val=v; o.textContent=`${v}${f.unit}`; drum.append(o); });
+  const pad2 = document.createElement('div'); pad2.style.height='60px'; drum.append(pad2);
+  showScreen('picker');
+  const idx = Math.max(0, f.values.indexOf(cfg[f.key]/f.mul));
+  drum.scrollTop = idx * 40;           // align current value to center
+  updateDrumSel();
+}
+function currentDrumIndex(){ return Math.round(document.getElementById('drum').scrollTop / 40); }
+function updateDrumSel(){
+  const opts = document.querySelectorAll('#drum .opt');
+  const i = currentDrumIndex();
+  opts.forEach((o,k)=> o.classList.toggle('sel', k===i));
+}
+let drumTimer = null;
+document.getElementById('drum').addEventListener('scroll', () => {
+  updateDrumSel();
+  clearTimeout(drumTimer);
+  drumTimer = setTimeout(()=>{ // snap settle tick
+    if (document.getElementById('snd').checked) beep(600, 30, 0.12);
+  }, 90);
+});
+document.getElementById('pickerOk').addEventListener('click', () => {
+  const i = currentDrumIndex();
+  const v = pickerField.values[Math.max(0, Math.min(i, pickerField.values.length-1))];
+  cfg[pickerField.key] = v * pickerField.mul;
+  saveCfg();
+  tl = buildTimeline(cfg);
+  renderSettingsList();
+  showScreen('settings');
+});
+
+// init
+buildControls();
+reset();
+showScreen('timer');
+</script>
+</body>
+</html>
