@@ -1,18 +1,7 @@
-import org.jetbrains.kotlin.gradle.tasks.Kapt
-
-
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("dagger.hilt.android.plugin")
-    id("com.google.devtools.ksp") version "1.8.10-1.0.9" apply false
-}
-
-buildscript {
-    repositories {
-        google()
-        mavenCentral()
-    }
 }
 
 android {
@@ -42,8 +31,8 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlin {
-        jvmToolchain(17)
+    kotlinOptions {
+        jvmTarget = "17"
     }
 
     buildFeatures {
@@ -92,7 +81,6 @@ dependencies {
 
     // Dependency Injection
     implementation("com.google.dagger:hilt-android:${rootProject.extra.get("hilt_version")}")
-    implementation("com.android.support:support-annotations:28.0.0")
     kapt("com.google.dagger:hilt-compiler:${rootProject.extra.get("hilt_version")}")
     implementation("androidx.hilt:hilt-navigation-compose:1.1.0")
 
@@ -122,13 +110,6 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-test-manifest:${rootProject.extra.get("compose_ui_version")}")
 }
 
-// In your app/build.gradle.kts file
-
-// ... other configurations like android {}, dependencies {}, etc.
-
 kapt {
-    correctErrorTypes = true // Рекомендуется добавить для более точных ошибок
-    arguments {
-        arg("compiler.options.jvm-target", "17")
-        arg("kapt.kotlin.generated", project.layout.buildDirectory.dir("generated/source/kapt/main"))    }
+    correctErrorTypes = true
 }
