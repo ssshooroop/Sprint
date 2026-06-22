@@ -20,12 +20,10 @@ buildscript {
     }
 }
 
-plugins {
-    id("com.android.application") version "8.10.1" apply false
-    id("com.android.library") version "8.10.1" apply false
-    id("org.jetbrains.kotlin.android") version "1.8.10" apply false
-}
+// Plugins are resolved from the buildscript classpath above (legacy style),
+// so the app module applies them by id without a version. Declaring them again
+// here with versions would conflict ("plugin already on the classpath").
 
 tasks.register("clean", Delete::class) {
-    delete(rootProject.buildDir)
+    delete(rootProject.layout.buildDirectory)
 }
