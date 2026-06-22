@@ -1,6 +1,7 @@
 package com.sprint.runner.presentation.distance
 
 import android.os.SystemClock
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sprint.runner.data.location.SpeedLocationSource
@@ -208,6 +209,11 @@ class DistanceViewModel @Inject constructor(
         gpsJob?.cancel()
         gpsJob = viewModelScope.launch {
             locationSource.samples().collect { sample ->
+                Log.d(
+                    "SprintDist",
+                    "sample phase=$phase spd=${sample.speedMps} acc=${sample.speedAccuracyMps} " +
+                        "dist=${"%.1f".format(tracker.distanceM)}"
+                )
                 if (phase != Phase.WORK) return@collect
                 val prev = tracker.distanceM
                 val result = tracker.add(sample)

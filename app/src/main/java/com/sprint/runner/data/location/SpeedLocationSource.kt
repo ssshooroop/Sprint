@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.os.Build
 import android.os.Looper
+import android.util.Log
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
@@ -45,6 +46,11 @@ class SpeedLocationSource @Inject constructor(
                     loc.speedAccuracyMetersPerSecond
                 } else 0f
                 val timeMs = loc.elapsedRealtimeNanos / 1_000_000L
+                Log.d(
+                    "SprintGPS",
+                    "fix lat=${loc.latitude} lon=${loc.longitude} " +
+                        "hasSpeed=${loc.hasSpeed()} speed=$speed acc=$accuracy"
+                )
                 trySend(DistanceSample(speed, accuracy, timeMs))
             }
         }
