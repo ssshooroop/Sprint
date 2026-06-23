@@ -46,7 +46,7 @@ sealed class WorkoutMode {
 @HiltViewModel
 class TimerViewModel @Inject constructor(
     private val workoutRepository: WorkoutRepository,
-    settingsRepository: SettingsRepository
+    private val settingsRepository: SettingsRepository
 ) : ViewModel() {
 
     private val _config = MutableStateFlow(IntervalConfig())
@@ -93,6 +93,15 @@ class TimerViewModel @Inject constructor(
 
     fun setWorkoutMode(mode: WorkoutMode) {
         _workoutMode.value = mode
+    }
+
+    /** Persist a new plan (from the inline steppers). Ignored while running. */
+    fun updateConfig(cfg: IntervalConfig) {
+        if (_runState.value != RunState.IDLE) return
+        _config.value = cfg
+        timeline = IntervalTimeline(cfg)
+        _snapshot.value = idleSnapshot(cfg)
+        viewModelScope.launch { settingsRepository.update(cfg) }
     }
 
     /** Start / resume depending on current state. */

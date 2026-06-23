@@ -38,18 +38,38 @@ class SpeedLocationSource @Inject constructor(
             .setWaitForAccurateLocation(false)
             .build()
 
+        var previous: android.location.Location? = null
+
         val callback = object : LocationCallback() {
             override fun onLocationResult(result: LocationResult) {
                 val loc = result.lastLocation ?: return
-                val speed = if (loc.hasSpeed()) loc.speed else 0f
-                val accuracy = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && loc.hasSpeedAccuracy()) {
-                    loc.speedAccuracyMetersPerSecond
-                } else 0f
+
+                val speed: Float
+                val accuracy: Float
+                val source: String
+                if (loc.hasSpeed() && loc.speed > 0f) {
+                    // Preferred: Doppler-derived ground speed from the chip.
+                    speed = loc.speed
+                    accuracy = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && loc.hasSpeedAccuracy()) {
+                        loc.speedAccuracyMetersPerSecond
+                    } else 0f
+                    source = "doppler"
+                } else {
+                    // Fallback: derive speed from position delta if the device
+                    // doesn't report Doppler speed.
+                    val p = previous
+                    val dt = if (p != null) (loc.elapsedRealtimeNanos - p.elapsedRealtimeNanos) / 1_000_000_000.0 else 0.0
+                    speed = if (p != null && dt > 0) (p.distanceTo(loc) / dt).toFloat() else 0f
+                    accuracy = 0f
+                    source = "derived"
+                }
+                previous = loc
+
                 val timeMs = loc.elapsedRealtimeNanos / 1_000_000L
                 Log.d(
                     "SprintGPS",
-                    "fix lat=${loc.latitude} lon=${loc.longitude} " +
-                        "hasSpeed=${loc.hasSpeed()} speed=$speed acc=$accuracy"
+                    "fix src=$source spd=$speed acc=$accuracy hPos=${loc.accuracy} " +
+                        "lat=${loc.latitude} lon=${loc.longitude}"
                 )
                 trySend(DistanceSample(speed, accuracy, timeMs))
             }

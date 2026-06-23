@@ -42,7 +42,10 @@ data class DistanceSnapshot(
     val workElapsedMs: Long = 0L,
     val phaseRemainingMs: Long = 0L,
     val phaseTotalMs: Long = 0L,
-    val results: List<RepResult> = emptyList()
+    val results: List<RepResult> = emptyList(),
+    // Live diagnostics so we can see GPS health on the watch itself.
+    val lastSpeedMps: Float = 0f,
+    val sampleCount: Int = 0
 ) {
     /** WORK ring = distance toward target; countdown ring = time remaining. */
     val progress: Float
@@ -68,7 +71,7 @@ data class DistanceSnapshot(
 class DistanceViewModel @Inject constructor(
     private val workoutRepository: WorkoutRepository,
     private val locationSource: SpeedLocationSource,
-    settingsRepository: SettingsRepository
+    private val settingsRepository: SettingsRepository
 ) : ViewModel() {
 
     private val _config = MutableStateFlow(IntervalConfig())
@@ -95,6 +98,10 @@ class DistanceViewModel @Inject constructor(
     private var lastCountdownSecond = -1
     private val results = mutableListOf<RepResult>()
 
+    // Diagnostics, surfaced on screen.
+    private var lastSpeedMps = 0f
+    private var sampleCount = 0
+
     init {
         viewModelScope.launch {
             settingsRepository.config.collect { cfg ->
@@ -110,10 +117,24 @@ class DistanceViewModel @Inject constructor(
         }
     }
 
+    /** Persist a new plan (from the inline steppers). Ignored while running. */
+    fun updateConfig(cfg: IntervalConfig) {
+        if (_runState.value != DistanceRunState.IDLE) return
+        _config.value = cfg
+        _snapshot.value = DistanceSnapshot(
+            targetM = cfg.distanceM,
+            totalRounds = cfg.rounds,
+            phaseTotalMs = cfg.prepMs
+        )
+        viewModelScope.launch { settingsRepository.update(cfg) }
+    }
+
     fun start() {
         if (_runState.value == DistanceRunState.RUNNING) return
         results.clear()
         round = 0
+        sampleCount = 0
+        lastSpeedMps = 0f
         tracker.reset()
         _runState.value = DistanceRunState.RUNNING
         enterPrep()
@@ -209,6 +230,8 @@ class DistanceViewModel @Inject constructor(
         gpsJob?.cancel()
         gpsJob = viewModelScope.launch {
             locationSource.samples().collect { sample ->
+                lastSpeedMps = sample.speedMps
+                sampleCount++
                 Log.d(
                     "SprintDist",
                     "sample phase=$phase spd=${sample.speedMps} acc=${sample.speedAccuracyMps} " +
@@ -243,7 +266,9 @@ class DistanceViewModel @Inject constructor(
             workElapsedMs = if (phase == Phase.WORK) now - workStart else 0L,
             phaseRemainingMs = phaseRemaining,
             phaseTotalMs = phaseTotal,
-            results = results.toList()
+            results = results.toList(),
+            lastSpeedMps = lastSpeedMps,
+            sampleCount = sampleCount
         )
     }
 
