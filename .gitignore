@@ -29,6 +29,9 @@ local.properties
 *.jks
 *.keystore
 
+# Exception: committed debug keystore so CI builds share one signature
+!app/debug.keystore
+
 # OS files
 .DS_Store
 Thumbs.db
